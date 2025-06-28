@@ -3,7 +3,7 @@ import pygame
 pygame.init()
 
 # Test the new maze generation
-maze = MazeGenerator(800, 720, 20)
+maze = MazeGenerator(800, 720)
 maze.generate_maze()
 print('Maze generated successfully!')
 print(f'Start position: {maze.start_pos}')

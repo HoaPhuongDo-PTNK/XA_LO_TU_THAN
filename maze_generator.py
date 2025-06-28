@@ -29,12 +29,15 @@ class MazeGenerator:
         self.goal_pos = (self.maze_width - 2, self.maze_height - 2)
         
     def generate_maze(self):
-        """Generate maze using Recursive Backtracking algorithm for proper maze structure"""
+        """Generate maze using Recursive Backtracking algorithm and add dead ends"""
         # Initialize all cells as walls
         self.maze = [[True for _ in range(self.maze_width)] for _ in range(self.maze_height)]
         
         # Start recursive backtracking from (1,1)
         self._recursive_backtrack(1, 1)
+        
+        # Add dead ends to create more fake routes
+        self._add_dead_ends()
         
         # Ensure start and goal positions are clear
         self.maze[self.start_pos[1]][self.start_pos[0]] = False
@@ -89,6 +92,32 @@ class MazeGenerator:
                 # No unvisited neighbors, backtrack
                 stack.pop()
     
+    def _add_dead_ends(self):
+        max_corridor_length = 2  # Shorter corridors to avoid thick walls
+        for y in range(1, self.maze_height - 1):
+            for x in range(1, self.maze_width - 1):
+                if not self.maze[y][x]:  # Path cell
+                    if random.random() < 0.03:  # Lower probability for fewer dead ends
+                        directions = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+                        random.shuffle(directions)
+                        for dx, dy in directions:
+                            i = 1
+                            while True:
+                                check_x = x + i * dx
+                                check_y = y + i * dy
+                                if not (0 <= check_x < self.maze_width and 0 <= check_y < self.maze_height):
+                                    break
+                                if not self.maze[check_y][check_x]:  # Hit a path
+                                    break
+                                i += 1
+                            if i - 1 >= 1:
+                                corridor_length = random.randint(1, min(i - 1, max_corridor_length))
+                                for j in range(1, corridor_length + 1):
+                                    carve_x = x + j * dx
+                                    carve_y = y + j * dy
+                                    self.maze[carve_y][carve_x] = False
+                                break
+    
     def _prevent_trivial_solutions(self):
         """Add strategic walls to prevent trivial direct paths to goal"""
         # Find current path length to goal
@@ -104,9 +133,6 @@ class MazeGenerator:
     
     def _get_path_length(self):
         """Get the length of the shortest path from start to goal"""
-        # Simple BFS to find shortest path length
-        from collections import deque
-        
         queue = deque([(self.start_pos[0], self.start_pos[1], 0)])
         visited = set()
         visited.add(self.start_pos)
@@ -133,16 +159,13 @@ class MazeGenerator:
     
     def _add_strategic_blocks(self):
         """Add walls to create a more complex path"""
-        # Get current path
         path = self._get_current_path()
         if not path or len(path) < 4:
             return
         
-        # Try to block some middle segments of the path
         blocks_added = 0
         max_blocks = 3
         
-        # Skip start and end portions, try to block middle parts
         middle_start = len(path) // 4
         middle_end = 3 * len(path) // 4
         
@@ -152,7 +175,6 @@ class MazeGenerator:
                 
             x, y = path[i]
             
-            # Find adjacent cells that we could potentially block
             for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
                 block_x, block_y = x + dx, y + dy
                 
@@ -162,21 +184,16 @@ class MazeGenerator:
                     (block_x, block_y) != self.start_pos and
                     (block_x, block_y) != self.goal_pos):
                     
-                    # Try blocking this cell
                     self.maze[block_y][block_x] = True
                     
-                    # Check if goal is still reachable
                     if self._get_path_length() > 0:
                         blocks_added += 1
-                        break  # Successfully added a block
+                        break
                     else:
-                        # Restore if it breaks connectivity
                         self.maze[block_y][block_x] = False
     
     def _get_current_path(self):
         """Get the current shortest path from start to goal"""
-        from collections import deque
-        
         queue = deque([(self.start_pos[0], self.start_pos[1], [(self.start_pos[0], self.start_pos[1])])])
         visited = set()
         visited.add(self.start_pos)
@@ -187,7 +204,6 @@ class MazeGenerator:
             if (x, y) == self.goal_pos:
                 return path
             
-            # Check 4 directions
             for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
                 next_x, next_y = x + dx, y + dy
                 
@@ -200,12 +216,11 @@ class MazeGenerator:
                     new_path = path + [(next_x, next_y)]
                     queue.append((next_x, next_y, new_path))
         
-        return []  # No path found
+        return []
     
     def _ensure_connectivity(self):
         """Ensure start and goal are connected"""
         if self._get_path_length() == 0:
-            # Create a simple connection
             self._create_direct_path()
     
     def _create_direct_path(self):
@@ -213,8 +228,6 @@ class MazeGenerator:
         current_x, current_y = self.start_pos
         goal_x, goal_y = self.goal_pos
         
-        # Create L-shaped path: horizontal then vertical
-        # Horizontal movement
         while current_x != goal_x:
             self.maze[current_y][current_x] = False
             if current_x < goal_x:
@@ -222,7 +235,6 @@ class MazeGenerator:
             else:
                 current_x -= 1
         
-        # Vertical movement
         while current_y != goal_y:
             self.maze[current_y][current_x] = False
             if current_y < goal_y:
@@ -230,7 +242,6 @@ class MazeGenerator:
             else:
                 current_y -= 1
         
-        # Ensure goal is reachable
         self.maze[goal_y][goal_x] = False
     
     def create_surface(self):
@@ -238,15 +249,13 @@ class MazeGenerator:
         surface = pygame.Surface((self.width, self.height))
         surface.fill(self.WHITE)
         
-        # Draw walls
         for y in range(self.maze_height):
             for x in range(self.maze_width):
-                if self.maze[y][x]:  # Wall
+                if self.maze[y][x]:
                     pygame.draw.rect(surface, self.BLACK, 
                                    (x * self.cell_size, y * self.cell_size, 
                                     self.cell_size, self.cell_size))
         
-        # Draw goal (red flag)
         goal_x = self.goal_pos[0] * self.cell_size
         goal_y = self.goal_pos[1] * self.cell_size
         pygame.draw.rect(surface, self.RED, 
@@ -265,7 +274,7 @@ class MazeGenerator:
         grid_y = int(y // self.cell_size)
         if 0 <= grid_x < self.maze_width and 0 <= grid_y < self.maze_height:
             return self.maze[grid_y][grid_x]
-        return True  # Outside bounds = wall
+        return True
     
     def is_goal(self, x, y):
         """Check if position is the goal"""
@@ -277,12 +286,14 @@ class Pathfinder:
     def __init__(self, maze_generator):
         self.maze = maze_generator
         
+        
+    
+    
     def find_path(self, start_x, start_y, target_x, target_y):
         """Find path using A* algorithm"""
         start_grid = (int(start_x // self.maze.cell_size), int(start_y // self.maze.cell_size))
         target_grid = (int(target_x // self.maze.cell_size), int(target_y // self.maze.cell_size))
         
-        # A* algorithm
         open_set = [(0, start_grid)]
         came_from = {}
         g_score = {start_grid: 0}
@@ -293,7 +304,6 @@ class Pathfinder:
             open_set = [item for item in open_set if item[1] != current]
             
             if current == target_grid:
-                # Reconstruct path - include start position
                 path = [current]
                 while current in came_from:
                     current = came_from[current]
@@ -301,11 +311,9 @@ class Pathfinder:
                 path.reverse()
                 return path
             
-            # Check neighbors
             for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
                 neighbor = (current[0] + dx, current[1] + dy)
                 
-                # Skip if out of bounds or wall
                 if (neighbor[0] < 0 or neighbor[0] >= self.maze.maze_width or
                     neighbor[1] < 0 or neighbor[1] >= self.maze.maze_height or
                     self.maze.maze[neighbor[1]][neighbor[0]]):
@@ -321,7 +329,7 @@ class Pathfinder:
                     if (f_score[neighbor], neighbor) not in open_set:
                         open_set.append((f_score[neighbor], neighbor))
         
-        return []  # No path found
+        return []
     
     def heuristic(self, a, b):
         """Manhattan distance heuristic"""
@@ -335,7 +343,6 @@ class Pathfinder:
         
         path = self.find_path(start_x, start_y, goal_x, goal_y)
         
-        # Convert grid coordinates to pixel coordinates
         pixel_path = []
         for grid_x, grid_y in path:
             pixel_x = grid_x * self.maze.cell_size + self.maze.cell_size // 2
@@ -352,11 +359,9 @@ class Pathfinder:
             next_x = next_grid[0] * self.maze.cell_size + self.maze.cell_size // 2
             next_y = next_grid[1] * self.maze.cell_size + self.maze.cell_size // 2
             
-            # Calculate direction
             dx = next_x - start_x
             dy = next_y - start_y
             
-            # Normalize
             distance = math.sqrt(dx*dx + dy*dy)
             if distance > 0:
                 return dx / distance, dy / distance
